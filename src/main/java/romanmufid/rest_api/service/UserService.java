@@ -1,17 +1,18 @@
 package romanmufid.rest_api.service;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Validator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import romanmufid.rest_api.entity.User;
 import romanmufid.rest_api.model.RegisterUserRequest;
+import romanmufid.rest_api.model.UpdateUserRequest;
+import romanmufid.rest_api.model.UserResponse;
 import romanmufid.rest_api.repository.UserRepository;
 import romanmufid.rest_api.security.BCrypt;
 
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -20,13 +21,11 @@ public class UserService {
     private UserRepository userRepository;
 
     @Autowired
-    private Validator validator;
+    private ValidationService validationService;
 
+    @Transactional
     public void register(RegisterUserRequest request) {
-        Set<ConstraintViolation<RegisterUserRequest>> constraintViolations = validator.validate(request);
-        if (constraintViolations.size() != 0) {
-            throw new ConstraintViolationException(constraintViolations);
-        }
+        validationService.validate(request);
 
         if (userRepository.existsById(request.getUsername())){
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username already exists");
@@ -38,5 +37,25 @@ public class UserService {
         user.setName(request.getName());
 
         userRepository.save(user);
+    }
+
+    public UserResponse getUser(User user) {
+        return UserResponse.builder().username(user.getUsername()).name(user.getName()).build();
+    }
+
+    @Transactional
+    public UserResponse updateUser(User user, UpdateUserRequest request) {
+        validationService.validate(request);
+        if(Objects.nonNull(request.getName())){
+            user.setName(request.getName());
+        }
+
+        if(Objects.nonNull(request.getPassword())){
+            user.setPassword(BCrypt.hashpw(request.getPassword(), BCrypt.gensalt()));
+        }
+
+        userRepository.save(user);
+
+        return UserResponse.builder().name(user.getName()).username(user.getUsername()).build();
     }
 }
